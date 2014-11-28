@@ -21,13 +21,21 @@ Questions sometimes need 'cleaning up' as they contain trailing or leading white
 
     cleanUpQuestion = (question) ->
       question.trim()
-      .replace /^\d\s+/, ''
-      .replace /^\d+\.\d+\s+/, ''
-      .replace /\s+/, ' '
+      .replace /^\d\s+/, '' # section title prefixes e.g. 2
+      .replace /^\d+\.\d+\s+/, '' # section title prefixes e.g. 1.3 
+      .replace /\s+/, ' ' # collapse whitespace
+      .replace /\((\w+\s\d+\;*\s*)+\)/, '' # references e.g. (Minsky 1967), (Jones 2011; Smith 2000)
+      
+Some questions should be excluded from the list completely as they cannot be cleaned up due to the presence of special characters or other substrings which make the questions unintelligible or unsuitable for publication.
+
+    isUsableQuestion = (question) ->
+      not(question.indexOf('©') > -1 or question.match(/10\.1007\/.+\b/g)?)
       
     cleanUpQuestions = (questions) -> 
       console.log 'Cleaning up questions...'
-      questions.map cleanUpQuestion
+      questions
+      .filter isUsableQuestion
+      .map cleanUpQuestion
 
 We first need the textual content of the full text body (without tags). We then need to split the content into sentences. In this case we will use a regular expression which looks for strings ending in a full stop, question mark or exclamation mark followed by optional whitespace and a character which may start a sentence. This is used to insert a marker into the text which is then split on this marker.
  

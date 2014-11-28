@@ -50,6 +50,10 @@ Some questions should be excluded from the list completely as they cannot be cle
       .filter isUsableQuestion
       .map cleanUpQuestion
 
+The questions will be rearranged to reduce repetitious passages, initially by shuffling them.
+
+    rearrangeQuestions = (questions) -> underscore.shuffle questions
+
 We first need the textual content of the full text body (without tags). We then need to split the content into sentences. In this case we will use a regular expression which looks for strings ending in a full stop, question mark or exclamation mark followed by optional whitespace and a character which may start a sentence. This is used to insert a marker into the text which is then split on this marker.
  
     getSentences = (page) ->
@@ -161,6 +165,7 @@ The algorithm will work by fetching content from the SpringerLink web-site and e
 
     gatherQuestions(minWords = 2000)
     .then cleanUpQuestions
+    .then rearrangeQuestions
     .then buildParagraphs
     .then buildChapters
     .then typesetBook

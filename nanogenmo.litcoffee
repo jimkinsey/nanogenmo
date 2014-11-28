@@ -21,11 +21,15 @@ Questions sometimes need 'cleaning up' as they contain trailing or leading white
 
     cleanUpQuestion = (question) ->
       question.trim()
+      .replace /^\s*\)\s*/, '' # oddly hanging close brackets
       .replace /^\d\s+/, '' # section title prefixes e.g. 2
       .replace /^\d+\.\d+\s+/, '' # section title prefixes e.g. 1.3 
+      .replace /^\d+\.\d+\.\d+\s*/, '' # section title prefixes e.g. 1.3.1 
+      .replace /^\d+(\w)/, '$1' # weird cases where sentences start with a number before a letter e.g. 2Can
       .replace /\s+/, ' ' # collapse whitespace
       .replace /\((\w+\s\d+\;*\s*)+\)/, '' # references e.g. (Minsky 1967), (Jones 2011; Smith 2000)
       .replace /\s*\((.*)\)\s*/, '$1' # de-bracket
+      .replace /^.*\d+\.\d+\s+/, '' # e.g. Grasping the challenges § 3.1 
       
 Some questions should be excluded from the list completely as they cannot be cleaned up due to the presence of special characters or other substrings which make the questions unintelligible or unsuitable for publication.
 
@@ -36,19 +40,28 @@ Some questions should be excluded from the list completely as they cannot be cle
     containsUnusableCharacters = (question) -> question.indexOf('©') > -1 
     containsDOI = (question) -> question.match(/10\.1007\/.+\b/g)?
     containsUnbalancedQuotes = (question) -> countOf(question, '"') % 2 != 0
+    containsNoAlphabeticCharacters = (question) -> not question.match(/[a-zA-Z"']/g)?
+    endsWithNonAlphaNumericCharacter = (question) -> not question.match(/[\w]\?$/)?
+    isBlacklisted = (question) -> [ 'ro/?', 'cfm?', 'ro/​shop/​?' ].filter((bl) -> question.trim() == bl).length > 0
 
     isUsableQuestion = (question) ->
-      not(underscore.every [
+      underscore.every [
         containsUnusableCharacters,
         containsDOI,
-        containsUnbalancedQuotes
-      ], (usable) -> usable question)
+        containsUnbalancedQuotes,
+        containsNoAlphabeticCharacters,
+        endsWithNonAlphaNumericCharacter,
+        isBlacklisted
+      ], (usable) -> 
+        u = not usable question
+        unless u then console.log "Question '#{question}' is not usable..."
+        u
       
     cleanUpQuestions = (questions) -> 
       console.log 'Cleaning up questions...'
       questions
-      .filter isUsableQuestion
       .map cleanUpQuestion
+      .filter isUsableQuestion
 
 The questions will be rearranged to reduce repetitious passages, initially by shuffling them.
 
@@ -92,7 +105,7 @@ Extracting the search results from the fulltext will involve finding the search 
         "http://link.springer.com#{$(li).find('a.fulltext').first().attr('href')}"
       callback null, uris.get()
 
-The function which gets questions for a search result page will also need to trampoline as it will in turn get the fulltext for each qualifying search result, which again is an asynchronous process.
+The function which gets questions for a search result page will also need to trampoline as it will in turn get the fulltext for each qualifying search result, which again is an asynchronous process. It will also deduplicate questions in advance of the count which terminates the trampoline, so that enough questions are gathered.
 
     getQuestionsForPage = (acc, pageNumber, callback) ->
       console.log "Getting questions for search page #{pageNumber}"
@@ -102,7 +115,7 @@ The function which gets questions for a search result page will also need to tra
         else
           extractSearchResultsWithFulltext res.body
           .then getQuestionsFromSearchResults
-          .then (qs) -> callback null, acc.concat(qs), pageNumber + 1
+          .then (qs) -> callback null, underscore.uniq(acc.concat(qs)), pageNumber + 1
 
 As the search is paginated and HTTP requests are asynchronous but we wish to stop once a condition is met, a trampoline function will be used which continues to perform the asynchronous request function until the termination condition is met. The asynchronus function will return a promise as this aids readability by reducing nesting of callback functions.
 

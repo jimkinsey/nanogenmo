@@ -6,8 +6,10 @@ It is a truth universally acknowledged that a node js script begins with require
     trampoline = require './trampoline'
     cheerio = require 'cheerio'
     underscore = require 'underscore'
+    PDFDocument = require 'pdfkit'
+    fs = require 'fs'
     
-The Request library is an HTTP wrapper that simplifies the making of HTTP requests. It will be required to get the content with which to build the novel. The Cheerio library is a JQuery-style HTML parser which will be used to extract data from the web-site. A trampoline function is useful for iterative asynchronous operations which terminate on a condition. Q-it-up is a library which makes it easy to translate a CPS-style function into one which instead returns a promise, useful for chaining asynchronous operations. Q is the promise library used by Q-it-up. Underscore provides a number of functional programming extensions to JavaScript.
+The Request library is an HTTP wrapper that simplifies the making of HTTP requests. It will be required to get the content with which to build the novel. The Cheerio library is a JQuery-style HTML parser which will be used to extract data from the web-site. A trampoline function is useful for iterative asynchronous operations which terminate on a condition. Q-it-up is a library which makes it easy to translate a CPS-style function into one which instead returns a promise, useful for chaining asynchronous operations. Q is the promise library used by Q-it-up. Underscore provides a number of functional programming extensions to JavaScript. PDFKit is used to generate PDFs. Duh. fs is the standard node file-system module which will be required for saving the PDF.
 
 Questions are gathered by performing a search, fetching the fulltext content for each item and extracting the questions until the number of words is above the required threshold.
 
@@ -18,12 +20,14 @@ A question is a string which, after trimming, ends with a question mark.
 Questions sometimes need 'cleaning up' as they contain trailing or leading whitespace or start with numbers from a section title.
 
     cleanUpQuestion = (question) ->
-      console.log 'Cleaning up questions...'
       question.trim()
       .replace /^\d\s+/, ''
       .replace /^\d+\.\d+\s+/, ''
+      .replace /\s+/, ' '
       
-    cleanUpQuestions = (questions) -> questions.map cleanUpQuestion
+    cleanUpQuestions = (questions) -> 
+      console.log 'Cleaning up questions...'
+      questions.map cleanUpQuestion
 
 We first need the textual content of the full text body (without tags). We then need to split the content into sentences. In this case we will use a regular expression which looks for strings ending in a full stop, question mark or exclamation mark followed by optional whitespace and a character which may start a sentence. This is used to insert a marker into the text which is then split on this marker.
  
@@ -73,7 +77,7 @@ The function which gets questions for a search result page will also need to tra
         else
           extractSearchResultsWithFulltext res.body
           .then getQuestionsFromSearchResults
-          .then (qs) -> callback null, acc.concat qs
+          .then (qs) -> callback null, acc.concat(qs), pageNumber + 1
 
 As the search is paginated and HTTP requests are asynchronous but we wish to stop once a condition is met, a trampoline function will be used which continues to perform the asynchronous request function until the termination condition is met. The asynchronus function will return a promise as this aids readability by reducing nesting of callback functions.
 
@@ -82,7 +86,8 @@ As the search is paginated and HTTP requests are asynchronous but we wish to sto
       qItUp(trampoline)
         args: [ [], 1 ]
         fn: getQuestionsForPage
-        done: (questions) -> wordsIn(questions).length >= minWords
+        done: (questions, pageNumber) -> wordsIn(questions).length >= minWords
+      .then ([questions, pageNumber]) -> questions
 
 To meet our condition for question gathering we need to count the words in our list of sentences. To do this, we count the words in each question and sum the result. A question may be split into words using the word boundary regex, the result of which needs to be filtered to remove the spaces between words and any punctuation.
 
@@ -98,25 +103,49 @@ Chunking the array is achieved recursively by taking a chunk, pushing it on to a
 
     buildParagraphs = (questions) ->
       console.log 'Building paragraphs...'
-      chunk(questions, -> Math.ceil Math.random() * 10)
+      chunk(questions, -> Math.ceil Math.random() * 7)
       .map (questions) -> questions.join ' '
       
 Paragraphs are gathered into chapters in a similar way by random chunking, but with a tighter range of chunk sizes with a higher minimum value as a one paragraph chapter would stand out a bit sharply.
 
     buildChapters = (paragraphs) ->
       console.log 'Building chapters...'
-      chunk(paragraphs, -> 30 + Math.floor Math.random() * 20)
+      chunk(paragraphs, -> 20 + Math.floor Math.random() * 10)
       .map (paragraphs) -> paragraphs.join '\n\t'
+
+The final typesetting of the book is performed by streaming the chapters out to a PDF file with a page break and chapter title between each.
+
+The name of the file will be based on the current draft number to maintain a history of drafts; this will be determined by checking the existence of drafts with successive numbers until an unused one is found. This is potentially inefficient when many drafts have been produced and may be revisited latere in light of this.
+
+    nextDraftName = (number = 1) ->
+      unless fs.existsSync "draft-#{number}.pdf" then "draft-#{number}.pdf" else nextDraftName number + 1
+      
+    typesetBook = (chapters) ->
+      console.log "Typesetting book..."
+      doc = new PDFDocument
+      filename = nextDraftName()
+      doc.pipe fs.createWriteStream filename
+      underscore.zip([1..chapters.length], chapters).forEach ([number, chapter]) ->
+        doc.font '/Library/Fonts/Marion.ttc', 'Marion-Bold'
+        doc.fontSize 20
+        doc.text "Chapter #{number}\n\n"
+        doc.font '/Library/Fonts/Marion.ttc', 'Marion-Regular'
+        doc.fontSize 14
+        doc.text chapter
+        doc.addPage()
+      doc.end()  
+      filename
 
 The algorithm will work by fetching content from the SpringerLink web-site and extracting questions, then going through a process of editing them into some kind of order and finally producing a conveniently readable output.
 
-    gatherQuestions(minWords = 500)
+    gatherQuestions(minWords = 2000)
     .then (questions) -> console.log "Got #{questions.length} questions"; questions
     .then cleanUpQuestions
     .then buildParagraphs
     .then (paras) -> console.log "Produced #{paras.length} paragraphs"; paras
     .then buildChapters
     .then (chapters) -> console.log "Produced #{chapters.length} chapters"; chapters
-    .then (chapters) -> console.log chapters.join ''
-    .fail console.warn
-
+    .then typesetBook
+    .then (filename) -> console.log "Wrote file '#{filename}"
+    .fail console.error
+    .fin

@@ -67,10 +67,29 @@ The questions will be rearranged to reduce repetitious passages, initially by sh
 
     rearrangeQuestions = (questions) -> underscore.shuffle questions
 
+All good novels need a great first line, so this attempts to select one from the questions available by successive filtering to see how specifically criteria can be matched and then choosing the longest.
+
+    successiveFilter = (array, preds) ->
+      if preds.length == 0 then array
+      else
+        filtered = successiveFilter array.filter(preds[0]), preds[1..]
+        if filtered.length == 0 then array
+        else filtered
+
+    getShortest = (strings) ->
+      underscore.first underscore.sortBy strings, (s) -> s.length
+
+    setUpKillerFirstLine = (questions) ->
+      line = getShortest successiveFilter questions, [
+        (question) -> question.toLowerCase().indexOf('this') > -1
+        (question) -> question.toLowerCase().indexOf('novel') > -1 or question.toLowerCase().indexOf('work') > -1
+      ]
+      [ line ].concat questions # FIXME remove from questions
+
 We first need the textual content of the full text body (without tags). We then need to split the content into sentences. In this case we will use a regular expression which looks for strings ending in a full stop, question mark or exclamation mark followed by optional whitespace and a character which may start a sentence. This is used to insert a marker into the text which is then split on this marker.
  
     getSentences = (page) ->
-      fulltext = cheerio.load(page)('div.FulltextWrapper').first()
+      fulltext = cheerio.load(page)('div.Fulltext').first()
       if fulltext?
         text = fulltext.text()
         text.replace(/([\.\?\!])(?!\d)|([^\d])\.(?=\d)/g,'$1$2|').split '|'
@@ -179,6 +198,7 @@ The algorithm will work by fetching content from the SpringerLink web-site and e
     gatherQuestions(minWords = 2000)
     .then cleanUpQuestions
     .then rearrangeQuestions
+    .then setUpKillerFirstLine
     .then buildParagraphs
     .then buildChapters
     .then typesetBook

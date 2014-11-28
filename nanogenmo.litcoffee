@@ -101,6 +101,12 @@ Chunking the array is achieved recursively by taking a chunk, pushing it on to a
       chunk(questions, -> Math.ceil Math.random() * 10)
       .map (questions) -> questions.join ' '
       
+Paragraphs are gathered into chapters in a similar way by random chunking, but with a tighter range of chunk sizes with a higher minimum value as a one paragraph chapter would stand out a bit sharply.
+
+    buildChapters = (paragraphs) ->
+      console.log 'Building chapters...'
+      chunk(paragraphs, -> 30 + Math.floor Math.random() * 20)
+      .map (paragraphs) -> paragraphs.join '\n\t'
 
 The algorithm will work by fetching content from the SpringerLink web-site and extracting questions, then going through a process of editing them into some kind of order and finally producing a conveniently readable output.
 
@@ -108,6 +114,9 @@ The algorithm will work by fetching content from the SpringerLink web-site and e
     .then (questions) -> console.log "Got #{questions.length} questions"; questions
     .then cleanUpQuestions
     .then buildParagraphs
-    .then (paras) -> paras.forEach console.log
+    .then (paras) -> console.log "Produced #{paras.length} paragraphs"; paras
+    .then buildChapters
+    .then (chapters) -> console.log "Produced #{chapters.length} chapters"; chapters
+    .then (chapters) -> console.log chapters.join ''
     .fail console.warn
 

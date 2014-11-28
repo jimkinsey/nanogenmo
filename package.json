@@ -1,0 +1,19 @@
+{
+  "name": "nanogenmo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Jim Kinsey",
+  "license": "ISC",
+  "dependencies": {
+    "cheerio": "^0.18.0",
+    "coffee-script": "^1.8.0",
+    "q": "^1.1.2",
+    "q-it-up": "^0.1.8",
+    "request": "^2.48.0",
+    "underscore": "^1.7.0"
+  }
+}

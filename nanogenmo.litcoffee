@@ -1,6 +1,3 @@
-NaNoGenMo
-=========
-
 It is a truth universally acknowledged that a node js script begins with require statements:
 
     request = require 'request'
@@ -21,6 +18,7 @@ A question is a string which, after trimming, ends with a question mark.
 Questions sometimes need 'cleaning up' as they contain trailing or leading whitespace or start with numbers from a section title.
 
     cleanUpQuestion = (question) ->
+      console.log 'Cleaning up questions...'
       question.trim()
       .replace /^\d\s+/, ''
       .replace /^\d+\.\d+\s+/, ''
@@ -50,7 +48,8 @@ Getting the questions for a fulltext page will involve requesting the page then 
             deferred.resolve getSentences(res.body).filter(isQuestion)
         deferred.promise
       q.all(uris.map(getQuestionsFromFulltextPage))
-      .then (setsOfQuestions) -> underscore.flatten setsOfQuestions
+      .then (setsOfQuestions) -> 
+        underscore.flatten setsOfQuestions
       .fail console.error
 
 Extracting the search results from the fulltext will involve finding the search result HTML elements using the appropriate CSS selector and filtering to those which have full text available. This function will return a promise although it is not asyncronous for readability and chaining with later asynchronous operations.
@@ -90,13 +89,25 @@ To meet our condition for question gathering we need to count the words in our l
     wordsIn = (sentences) ->
       underscore.flatten sentences.map (sentence) -> sentence.split(/\b/).filter (word) -> not(word.match(/(\s+|[\.\?\!\,\;\:])/)?)
 
+Questions are marshalled into paragraphs algorithmically to produce a variety of paragraph structures. This works by chunking the array of questions into randomly sized sets before imposing a structure on each set.
+
+Chunking the array is achieved recursively by taking a chunk, pushing it on to an array then concatenating the result of chunking the rest of the array. The chunk size is passed as a function so that it can vary betwen chunks.
+
+    chunk = (array, chunkSize) ->
+      if array.length == 0 then [] else chunked = [ array[0..chunkSize()] ].concat chunk array[chunkSize()-1..], chunkSize
+
+    buildParagraphs = (questions) ->
+      console.log 'Building paragraphs...'
+      chunk(questions, -> Math.ceil Math.random() * 10)
+      .map (questions) -> questions.join ' '
+      
+
 The algorithm will work by fetching content from the SpringerLink web-site and extracting questions, then going through a process of editing them into some kind of order and finally producing a conveniently readable output.
 
     gatherQuestions(minWords = 500)
+    .then (questions) -> console.log "Got #{questions.length} questions"; questions
     .then cleanUpQuestions
-    .then (questions) -> questions.forEach console.log
+    .then buildParagraphs
+    .then (paras) -> paras.forEach console.log
     .fail console.warn
 
-sadf
-dsaf
-saf

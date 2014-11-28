@@ -25,11 +25,24 @@ Questions sometimes need 'cleaning up' as they contain trailing or leading white
       .replace /^\d+\.\d+\s+/, '' # section title prefixes e.g. 1.3 
       .replace /\s+/, ' ' # collapse whitespace
       .replace /\((\w+\s\d+\;*\s*)+\)/, '' # references e.g. (Minsky 1967), (Jones 2011; Smith 2000)
+      .replace /\s*\((.*)\)\s*/, '$1' # de-bracket
       
 Some questions should be excluded from the list completely as they cannot be cleaned up due to the presence of special characters or other substrings which make the questions unintelligible or unsuitable for publication.
 
+    countOf = (string, char) ->
+      index = string.indexOf(char)
+      if index < 0 then 0 else 1 + countOf string.substring(index), char
+
+    containsUnusableCharacters = (question) -> question.indexOf('©') > -1 
+    containsDOI = (question) -> question.match(/10\.1007\/.+\b/g)?
+    containsUnbalancedQuotes = (question) -> countOf(question, '"') % 2 != 0
+
     isUsableQuestion = (question) ->
-      not(question.indexOf('©') > -1 or question.match(/10\.1007\/.+\b/g)?)
+      not(underscore.every [
+        containsUnusableCharacters,
+        containsDOI,
+        containsUnbalancedQuotes
+      ], (usable) -> usable question)
       
     cleanUpQuestions = (questions) -> 
       console.log 'Cleaning up questions...'
@@ -141,19 +154,15 @@ The name of the file will be based on the current draft number to maintain a his
         doc.fontSize 14
         doc.text chapter
         doc.addPage()
-      doc.end()  
-      filename
+      doc.end() 
+      console.log "Wrote file '#{filename}"
 
 The algorithm will work by fetching content from the SpringerLink web-site and extracting questions, then going through a process of editing them into some kind of order and finally producing a conveniently readable output.
 
     gatherQuestions(minWords = 2000)
-    .then (questions) -> console.log "Got #{questions.length} questions"; questions
     .then cleanUpQuestions
     .then buildParagraphs
-    .then (paras) -> console.log "Produced #{paras.length} paragraphs"; paras
     .then buildChapters
-    .then (chapters) -> console.log "Produced #{chapters.length} chapters"; chapters
     .then typesetBook
-    .then (filename) -> console.log "Wrote file '#{filename}"
     .fail console.error
     .fin

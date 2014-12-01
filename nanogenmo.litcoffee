@@ -159,11 +159,9 @@ Extracting the search results from the fulltext will involve finding the search 
 
 The function which gets questions for a search result page will also need to trampoline as it will in turn get the fulltext for each qualifying search result, which again is an asynchronous process. It will also deduplicate questions in advance of the count which terminates the trampoline, so that enough questions are gathered.
 
-    #http://link.springer.com/search?query=Astronomy+OR+Psychiatry+OR+Philosophy+OR+Education+OR+Ancient+Greece+OR+Odysseus+OR+Ethics+OR+Artificial+Intelligence+OR+marriage+OR+semiotics&sortOrder=newestFirst&facet-content-type=%22Chapter%22
-    
     getQuestionsForPage = (acc, pageNumber, callback) ->
       console.log "Getting questions for search page #{pageNumber}"
-      request.get "http://link.springer.com/search/page/#{pageNumber}?query=&facet-content-type=%22Chapter%22&showAll=false", (err, res) ->
+      request.get "http://link.springer.com/search/page/#{pageNumber}?query=Novel+OR+Generation+OR+November+OR+Astronomy+OR+Psychiatry+OR+Philosophy+OR+Education+OR+Ancient+Greece+OR+Odysseus+OR+Ethics+OR+Artificial+Intelligence+OR+marriage+OR+semiotics&showAll=false&sortOrder=newestFirst&facet-content-type=%22Chapter%22", (err, res) ->
         if err?
           callback err
         else
@@ -240,7 +238,7 @@ The name of the file will be based on the current draft number to maintain a his
 
 The algorithm will work by fetching content from the SpringerLink web-site and extracting questions, then going through a process of editing them into some kind of order and finally producing a conveniently readable output.
 
-    gatherQuestions(minWords = 500)
+    gatherQuestions(minWords = 60000)
     .then rearrangeQuestions
     .then setUpKillerFirstLine
     .then setUpKillerLastLine
